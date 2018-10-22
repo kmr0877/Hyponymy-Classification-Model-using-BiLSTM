@@ -45,7 +45,26 @@ def evaluate(golden_list, predict_list):
 
 
 def new_LSTMCell(input, hidden, w_ih, w_hh, b_ih=None, b_hh=None):
-    pass;
+    if input.is_cuda:
+        igates = F.linear(input, w_ih)
+        hgates = F.linear(hidden[0], w_hh)
+        state = fusedBackend.LSTMFused.apply
+        return state(igates, hgates, hidden[1]) if b_ih is None else state(igates, hgates, hidden[1], b_ih, b_hh)
+
+    hx, cx = hidden
+    gates = F.linear(input, w_ih, b_ih) + F.linear(hx, w_hh, b_hh)
+
+    ingate, forgetgate, cellgate, outgate = gates.chunk(4, 1)
+
+    ingate = torch.sigmoid(ingate)
+    forgetgate = torch.sigmoid(forgetgate)
+    cellgate = torch.tanh(cellgate)
+    outgate = torch.sigmoid(outgate)
+
+    cy = (forgetgate * cx) + ((1-forgetgate) * cellgate)
+    hy = outgate * torch.tanh(cy)
+
+    return hy, cy
 
 
 def get_char_sequence(model, batch_char_index_matrices, batch_word_len_lists):
