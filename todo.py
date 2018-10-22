@@ -68,6 +68,16 @@ def new_LSTMCell(input, hidden, w_ih, w_hh, b_ih=None, b_hh=None):
 
 
 def get_char_sequence(model, batch_char_index_matrices, batch_word_len_lists):
-    pass;
-evaluate
+    def init_hidden(model):
+        # first is the hidden h
+        # second is the cell c
+        return (Variable(torch.zeros(2, batch_word_len_lists.shape[1], 50)),
+                Variable(torch.zeros(2, batch_word_len_lists.shape[1], 50)))
+    model.hidden = init_hidden(model)
+    print(batch_char_index_matrices.shape[2], batch_word_len_lists.shape)
+    model.BiLSTM= torch.nn.LSTM(input_size=batch_char_index_matrices.shape[2], hidden_size=50, bidirectional=True)
+    lstm_out, _ = model.BiLSTM(batch_char_index_matrices.float(), model.hidden)
+    print("lstm",lstm_out.shape)
+    return lstm_out
+
 
