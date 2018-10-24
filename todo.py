@@ -1,6 +1,13 @@
 import torch
 from config import config
-
+from data_io import DataReader, gen_embedding_from_file, read_tag_vocab
+from config import config
+from model import sequence_labeling
+from tqdm import tqdm_notebook as tqdm
+from todo import evaluate
+import torch
+#from ipywidgets import IntProgress
+from randomness import apply_random_seed
 _config = config()
 
 
@@ -68,16 +75,44 @@ def new_LSTMCell(input, hidden, w_ih, w_hh, b_ih=None, b_hh=None):
 
 
 def get_char_sequence(model, batch_char_index_matrices, batch_word_len_lists):
+ 
+    
+#     Reshape to (14,14)
+    batch_char_index_matrices = np.reshape(batch_char_index_matrices, [14,14])
+    
+#   Making embeddings of 14,14,50  
+    batch_char_embedding = np.zeros((14,14,50))
+    batch_char_index_matrices, idxs = list(zip(*sorted(zip(batch_char_index_matrices, np.arange(14)),
+                                                 key = lambda x: np.count_nonzero(x[0]))))
+    for i, batch_char_idx in enumerate(batch_char_index_matrices):
+        for j, idx in enumerate(batch_char_idx):
+            batch_char_embedding[i][j] = char_embedding[idx]
+    print("Embedding Shape:", batch_char_embedding.shape)
+    
+#     Make hidden Layes
     def init_hidden(model):
         # first is the hidden h
         # second is the cell c
-        return (Variable(torch.zeros(2, batch_word_len_lists.shape[1], 50)),
-                Variable(torch.zeros(2, batch_word_len_lists.shape[1], 50)))
+        return (Variable(torch.zeros(2,14, 50)),
+                Variable(torch.zeros(2,14, 50)))
+    
+#     Make model
     model.hidden = init_hidden(model)
-    print(batch_char_index_matrices.shape[2], batch_word_len_lists.shape)
-    model.BiLSTM= torch.nn.LSTM(input_size=batch_char_index_matrices.shape[2], hidden_size=50, bidirectional=True)
-    lstm_out, _ = model.BiLSTM(batch_char_index_matrices.float(), model.hidden)
-    print("lstm",lstm_out.shape)
-    return lstm_out
+    model.BiLSTM= torch.nn.LSTM(input_size=50, hidden_size=50, bidirectional=True)
+    lstm_out, _ = model.BiLSTM(torch.tensor(batch_char_embedding).float(), model.hidden)
+    
+#     Take the Last LSTM output
+    lstm_out = lstm_out[-1]
+    lstm_out = lstm_out.data.numpy()
+    
+#     Convert back to original order
+    orignal_out = np.zeros((14,100))
+    for i, idx in enumerate(idxs):
+        orignal_out[idx] = lstm_out[i]
+    orignal_out = np.reshape(orignal_out, (2,7,100))
+    
+    print("lstm",orignal_out.shape)
+    return torch.tensor(orignal_out)
 
-
+#     #return result
+#     pass
