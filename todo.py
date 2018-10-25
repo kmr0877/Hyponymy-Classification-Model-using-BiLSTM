@@ -75,44 +75,53 @@ def new_LSTMCell(input, hidden, w_ih, w_hh, b_ih=None, b_hh=None):
 
 
 def get_char_sequence(model, batch_char_index_matrices, batch_word_len_lists):
- 
+    
+    # Given an input of the size [2,7,14], we will convert it a minibatch of the shape [14,14] to 
+    # represent 14 words(7 in each sentence), and 14 characters in each word.
+    
+    ## NOTE: Please DO NOT USE for Loops to iterate over the mini-batch.
+    
+    
+    # Get corresponding char_Embeddings, we will have a Final Tensor of the shape [14, 14, 50]
+    # Sort the mini-batch wrt word-lengths, to form a pack_padded sequence.
+    # Feed the pack_padded sequence to the char_LSTM layer.
+    
+    
+    # Get hidden state of the shape [2,14,50].
+    # Recover the hidden_states corresponding to the sorted index.
+    # Re-shape it to get a Tensor the shape [2,7,100].
     
 #     Reshape to (14,14)
-    batch_char_index_matrices = np.reshape(batch_char_index_matrices, [14,14])
     
-#   Making embeddings of 14,14,50  
-    batch_char_embedding = np.zeros((14,14,50))
-    batch_char_index_matrices, idxs = list(zip(*sorted(zip(batch_char_index_matrices, np.arange(14)),
-                                                 key = lambda x: np.count_nonzero(x[0]))))
-    for i, batch_char_idx in enumerate(batch_char_index_matrices):
-        for j, idx in enumerate(batch_char_idx):
-            batch_char_embedding[i][j] = char_embedding[idx]
-    print("Embedding Shape:", batch_char_embedding.shape)
+    perm_idx, sorted_batch_word_len_lists = model.sort_input(batch_word_len_lists.view(14))
+    sorted_input_embeds = char_embedding[perm_idx]
+    _, desorted_indices = torch.sort(perm_idx, descending=False)
+    batch_char_index_matrices = batch_char_index_matrices.view(14,14)
+    sorted_input_embeds = char_embedding[batch_char_index_matrices]
+    print(sorted_input_embeds.shape)
+    output_sequence = pack_padded_sequence(torch.tensor(sorted_input_embeds), 
+                                            lengths=sorted_batch_word_len_lists.data.tolist(), batch_first=True)
     
-#     Make hidden Layes
-    def init_hidden(model):
-        # first is the hidden h
-        # second is the cell c
-        return (Variable(torch.zeros(2,14, 50)),
-                Variable(torch.zeros(2,14, 50)))
-    
-#     Make model
-    model.hidden = init_hidden(model)
-    model.BiLSTM= torch.nn.LSTM(input_size=50, hidden_size=50, bidirectional=True)
-    lstm_out, _ = model.BiLSTM(torch.tensor(batch_char_embedding).float(), model.hidden)
+#   Make embeddings of 14,14,50  
+
+    hidden = (torch.ones(2, 14, 100), torch.ones(2, 14, 100)) 
+    model.BiLSTM = nn.LSTM(50,100,  bidirectional=True)
+    lstm_out, state = model.BiLSTM(output_sequence.float(), hidden)
+#     lstm_out, _ = model.BiLSTM(torch.tensor(batch_char_embedding).float())
     
 #     Take the Last LSTM output
     lstm_out = lstm_out[-1]
-    lstm_out = lstm_out.data.numpy()
-    
-#     Convert back to original order
-    orignal_out = np.zeros((14,100))
-    for i, idx in enumerate(idxs):
-        orignal_out[idx] = lstm_out[i]
-    orignal_out = np.reshape(orignal_out, (2,7,100))
-    
-    print("lstm",orignal_out.shape)
-    return torch.tensor(orignal_out)
+#     lstm_out = lstm_out
+
+    print("packed:", output_sequence[0].shape)
+    output_sequence, _ = pad_packed_sequence(output_sequence, batch_first=True)
+
+    output_sequence = output_sequence[desorted_indices]
+    print(output_sequence.shape)
+    output_sequence = model.non_recurrent_dropout(output_sequence)
+
+    print("lstm",output_sequence.shape)
+    return output_sequence
 
 #     #return result
 #     pass
