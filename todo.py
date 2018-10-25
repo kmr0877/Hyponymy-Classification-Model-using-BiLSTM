@@ -76,52 +76,28 @@ def new_LSTMCell(input, hidden, w_ih, w_hh, b_ih=None, b_hh=None):
 
 def get_char_sequence(model, batch_char_index_matrices, batch_word_len_lists):
     
-    # Given an input of the size [2,7,14], we will convert it a minibatch of the shape [14,14] to 
-    # represent 14 words(7 in each sentence), and 14 characters in each word.
-    
-    ## NOTE: Please DO NOT USE for Loops to iterate over the mini-batch.
-    
-    
-    # Get corresponding char_Embeddings, we will have a Final Tensor of the shape [14, 14, 50]
-    # Sort the mini-batch wrt word-lengths, to form a pack_padded sequence.
-    # Feed the pack_padded sequence to the char_LSTM layer.
-    
-    
-    # Get hidden state of the shape [2,14,50].
-    # Recover the hidden_states corresponding to the sorted index.
-    # Re-shape it to get a Tensor the shape [2,7,100].
-    
-#     Reshape to (14,14)
     
     perm_idx, sorted_batch_word_len_lists = model.sort_input(batch_word_len_lists.view(14))
     sorted_input_embeds = char_embedding[perm_idx]
     _, desorted_indices = torch.sort(perm_idx, descending=False)
     batch_char_index_matrices = batch_char_index_matrices.view(14,14)
     sorted_input_embeds = char_embedding[batch_char_index_matrices]
-    print(sorted_input_embeds.shape)
+  
     output_sequence = pack_padded_sequence(torch.tensor(sorted_input_embeds), 
                                             lengths=sorted_batch_word_len_lists.data.tolist(), batch_first=True)
     
 #   Make embeddings of 14,14,50  
 
-    hidden = (torch.ones(2, 14, 100), torch.ones(2, 14, 100)) 
-    model.BiLSTM = nn.LSTM(50,100,  bidirectional=True)
-    lstm_out, state = model.BiLSTM(output_sequence.float(), hidden)
-#     lstm_out, _ = model.BiLSTM(torch.tensor(batch_char_embedding).float())
+    lstm_out, state = model.char_lstm(output_sequence.float())
+
+
+#     Used state 0
+    answer = torch.cat((state[0][0],state[0][1] ),1)
+    answer = answer[desorted_indices]
     
-#     Take the Last LSTM output
-    lstm_out = lstm_out[-1]
-#     lstm_out = lstm_out
 
-    print("packed:", output_sequence[0].shape)
-    output_sequence, _ = pad_packed_sequence(output_sequence, batch_first=True)
-
-    output_sequence = output_sequence[desorted_indices]
-    print(output_sequence.shape)
-    output_sequence = model.non_recurrent_dropout(output_sequence)
-
-    print("lstm",output_sequence.shape)
-    return output_sequence
+    
+    return answer.view(2,7,100)
 
 #     #return result
 #     pass
