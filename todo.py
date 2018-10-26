@@ -6,6 +6,8 @@ from model import sequence_labeling
 from tqdm import tqdm_notebook as tqdm
 from todo import evaluate
 import torch
+from torch.autograd import Variable
+import torch.nn.functional as F
 #from ipywidgets import IntProgress
 from randomness import apply_random_seed
 _config = config()
@@ -78,15 +80,26 @@ def get_char_sequence(model, batch_char_index_matrices, batch_word_len_lists):
     
     
     perm_idx, sorted_batch_word_len_lists = model.sort_input(batch_word_len_lists.view(14))
-    sorted_input_embeds = char_embedding[perm_idx]
     _, desorted_indices = torch.sort(perm_idx, descending=False)
     batch_char_index_matrices = batch_char_index_matrices.view(14,14)
-    sorted_input_embeds = char_embedding[batch_char_index_matrices]
+    char_embedding = model.char_embeds(batch_char_index_matrices)
+    sorted_input_embeds = char_embedding[perm_idx]
   
     output_sequence = pack_padded_sequence(torch.tensor(sorted_input_embeds), 
                                             lengths=sorted_batch_word_len_lists.data.tolist(), batch_first=True)
     
 #   Make embeddings of 14,14,50  
+    lstm_out, state = model.char_lstm(output_sequence.float())
+    lstm_out, state = pad_packed_sequence(lstm_out,batch_first=True)
+    temp = []
+    for i in range(len(sorted_batch_word_len_lists)):
+        temp.append(torch.cat([lstm_out[i, sorted_batch_word_len_lists[i] - 1, :model.config.char_lstm_output_dim], lstm_out[i, 0, model.config.char_lstm_output_dim:]],-1).unsqueeze(0))
+        
+ #     Used state 0       
+    answer = torch.cat(temp,0)
+    answer = answer[desorted_indices]
+
+
 
     lstm_out, state = model.char_lstm(output_sequence.float())
 
