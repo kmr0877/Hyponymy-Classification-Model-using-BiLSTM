@@ -109,5 +109,6 @@ def get_char_sequence(model, batch_char_index_matrices, batch_word_len_lists):
     
     return answer.view((batch_word_len_lists.size()[0],batch_word_len_lists.size()[1],-1))
 
+
 #     #return result
 #     pass
