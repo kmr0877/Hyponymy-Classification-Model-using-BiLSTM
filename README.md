@@ -41,3 +41,7 @@ The number of false positives in the above example is 2, the number of false neg
 
 NOTE:
 The length of the two lists are the same, and length of the  i-th instance in both lists are the same as well. Which means that you do not need to handle the alignment issue.
+
+## Workflow
+
+![workflow](./workflow.png)
